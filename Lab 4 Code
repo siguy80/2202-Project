@@ -80,19 +80,17 @@
 #define SMART_LED           21  // When DIP Switch S1-11 is on, Smart LED is connected to pin 23 GPIO21 (J21)
 #define SMART_LED_COUNT     1   // Number of SMART LEDs in use
 
-#define Bridge_Servo_1      41  // GPIO41 (J41) is Big Black Servo 1
-#define Bridge_Servo_2      42  // GPIO42 (J42) is Big Black Servo 2
+#define Bridge_Servo_1       2  // GPIO41 (J41) is Big Black Servo 1
+#define Bridge_Servo_2       4 // GPIO42 (J42) is Big Black Servo 2
 #define Chasis_Servo_1      40  // GPIO40 (J40) is Rod Servo 
-#define Hook_servo_1        39  // GPIO39 (J39) is Hook Servo 1
+#define Hook_servo_1        21  // GPIO39 (J39) is Hook Servo 1
 #define Hook_servo_2        47  // GPIO47 (J47) is Hook Servo 2
 
-#define LEFT                1   // Indicates left direction for (stepper) motor
-#define RIGHT               0   // Indicates right direction for (stepper) motor
 
 #define trigPin             5
 #define echoPin             6
 
-#define BRDTST_POT_R1       1 // potentiometer connected to 1
+
 
 
 // Constants
@@ -104,16 +102,16 @@ const int ci_Display_Update = 100;                                            //
 // IMPORTANT: The constants in this section need to be set to appropriate values for your robot. 
 // You will have to experiment to determine appropriate values.
 
-const int ci_S1_Open = 1000;                                          // Value for open position of claw
-const int ci_S1_Closed = 4000;                                        // Value for closed position of claw
-const int ci_S2_Open = 1000;                                          // Value for open position of claw
-const int ci_S2_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S1_Open = 700;                                          // Value for open position of claw
+const int ci_S1_Closed = 2000;                                        // Value for closed position of claw
+const int ci_S2_Open = 300;                                          // Value for open position of claw
+const int ci_S2_Closed = 2200;                                        // Value for closed position of claw
 const int ci_S3_Open = 1000;                                          // Value for open position of claw
 const int ci_S3_Closed = 4000;                                        // Value for closed position of claw
-const int ci_S4_Open = 1000;                                          // Value for open position of claw
-const int ci_S4_Closed = 4000;                                        // Value for closed position of claw
-const int ci_S5_Open = 1000;                                          // Value for open position of claw
-const int ci_S5_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S4_Open = 570;                                          // Value for open position of claw
+const int ci_S4_Closed = 1200;                                        // Value for closed position of claw
+const int ci_S5_Open = 350;                                          // Value for open position of claw
+const int ci_S5_Closed = 1050;                                        // Value for closed position of claw
 
 //
 //=====================================================================================================================
@@ -124,17 +122,12 @@ boolean bt_Motors_Enabled = true;                                             //
 boolean bt_3_S_Time_Up = false;                                               // 3 second timer elapsed flag
 boolean bt_2_S_Time_Up = false;                                               // 2 second timer elapsed flag
 boolean bt_200_mS_Time_Up = false;                                            // 200 millisecond timer elapsed flag
-boolean bt_Direction;                                                         // Stepper motor direction
-boolean bt_Stepper_Step;                                                      // Stepper motor step flag
+
+
 
 unsigned char uc_Drive_Speed;                                                 // Motor drive speed (0-255)
 unsigned char uc_Drive_Index;                                                 // State index for run mode (1)
-unsigned char uc_Stepper_Index;                                               // State index for stepper test mode (2)
 
-int i_MaxStepsFromCentre = 900;                                               // Allowable number of steps from centre point
-int i_StepperCentre = i_MaxStepsFromCentre;                                   // Centre point of stepper range, in steps
-int i_StepCounter = 0;                                                        // Number of steps to take to reach setpoint
-int i_StepperPosition;                                                        // Current position of stepper, in steps
 
 
 unsigned int ui_Mode_PB_Debounce;                                             // Pushbutton debounce timer count
@@ -154,6 +147,10 @@ const int echoPin2 = 7;
 // defines variables
 long duration;
 long duration2;
+
+long count = 0;
+
+int y;
 
 int distance = 5;
 int distance2;
@@ -238,7 +235,7 @@ void setup()
    pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(echoPin, INPUT);
 
-  pinMode(BRDTST_POT_R1, INPUT);
+
 
 }
 
@@ -328,7 +325,11 @@ void loop()
          {
             Bot.Stop("D1");                                                   // Stop Drive 1
             uc_Drive_Index = 0;                                               // Reset drive index
-            uc_Stepper_Index = 0;                                             // Reset stepper index
+            Bot.ToPosition("S1", ci_S1_Open);
+            Bot.ToPosition("S2", ci_S2_Open);
+            Bot.ToPosition("S3", ci_S3_Open);
+            Bot.ToPosition("S4", ci_S1_Open);
+            Bot.ToPosition("S5", ci_S1_Open);
             driveEncoders.clearEncoder();                                     // Clear encoder counts
             bt_2_S_Time_Up = false;                                           // Reset 2 second timer flag
             break;
@@ -336,7 +337,10 @@ void loop()
       
          case 1: // Run robot
          {
-          
+          switch(count){
+            //drive forward find edge
+            case 0:
+            {
             if(bt_3_S_Time_Up)                                                // Pause for 3 sec before running Case 1 code
             {
                // Read pot to update drive motor speed
@@ -386,33 +390,52 @@ void loop()
             //Stops the bot
             }else{
                 Bot.Stop("D1");
+                count = 1;
                 //Opens the firts deploy servo
-                for(int x = ci_S1_Open, x<=ci_S1_Closed, x++){
-                  Bot.ToPosition("S1", x);
-                }
-                //Opens the second deploy servo
-                for(int y = ci_S2_Open, y<=ci_S2_Closed, y++){
+            }
+           }
+          }
+          break;
+       }
+       //deploys bridge
+      case 1:{
+        //deploys first servo bridge
+            for(int x = ci_S1_Open; x<=ci_S1_Closed; x++){
+                  Bot.ToPosition("S1", x);   
+                  delay(200);
+            }
+            //deploys second servo bridge
+            for(y = ci_S2_Open; y<=ci_S2_Closed; y++){
                   Bot.ToPosition("S2", y);
-                }
-              //Checks if Second deploy servo has been fully deployed
+                  delay(200);
+                } 
+                delay(1000);
+            //Checks if Second deploy servo has been fully deployed
               if(y == ci_S2_Closed){
                 //If it has been it deploys the hook servo 1
-                for(int g = ci_S4_Open, g<=ci_S4_Closed, g++){
+                for(int g = ci_S4_Open; g<=ci_S4_Closed; g++){
                   Bot.ToPosition("S4", g);
+                  delay(200);
                 }
                 //Deploys hook servo 2
-                for(int w = ci_S5_Open, y<=ci_S5_Closed, w++){
+                for(int w = ci_S5_Open; y<=ci_S5_Closed; w++){
                   Bot.ToPosition("S5", w);
+                  delay(200);
                 }
+                delay(1000);
               }
-                            
-            }
-        
-           } // if distance
-        }
+              count = 2;                      
+           break;     
+      }
+          case 2:
+          {
+                        
+            break;
+          }
+      }
         break;
     }
-
+  }
            
          
 
@@ -431,14 +454,12 @@ void loop()
       }
    }
 }   
-}
+
 // Set colour of Smart LED depending on robot mode (and update brightness)
 void Indicator()
 {
   SmartLEDs.setPixelColor(0, ui_Mode_Indicator[ui_Robot_Mode_Index]);         // Set pixel colors to = mode 
   SmartLEDs.show();                                                           // Send the updated pixel colors to the hardware
 }
-
-
 
 
