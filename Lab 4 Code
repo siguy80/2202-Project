@@ -1,3 +1,41 @@
+
+/*
+ MSE 2202 MSEBot base code for Labs 3 and 4
+ Language: Arduino
+ Authors: Eugen Porter and Michael Naish
+ 
+ Rev 1 - Initial version 2016
+ Rev 2 - Update for MSEduino V0.2
+ ...
+ Rev 4 - revisit for MSEDuino V4.2 2023
+ */
+
+//  To program and use ESP32-S3
+//   
+//  File->Preferences:
+//  Additional Boards Manager URLs: https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+//
+//
+//  Tools->:
+//  Board: "Adafruit Feather ESP32-S3 No PSRAM"
+//  Upload Speed: "921600"
+//  USB CDC On Boot: "Enabled"
+//  USB Firmware MSC on Boot: "Disabled"
+//  USB DFU On Bot: "Disabled"
+//  Upload Mode:"UART0/Hardware CDC"
+//  SPU Frequency: "240MHz (WiFi)"
+//  Flash Mode: "QIO 80MHz"
+//  Flash SIze: "4MB (32Mb)"
+//  Partition Scheme: "Default 4MB with spiffs (1.2MB app/1.5MB SPIFFS)"
+//  Core Debug Level: "Verbose"
+//  PSRAM: 'Disabled"
+//  Arduino Runs On: "Core 1"
+//  Events Run On: "Core 1"
+//
+//  To program, press and hold the reset button then press and hold program button, release the reset button then 
+//  release the program button 
+//
+
 #include <Adafruit_NeoPixel.h>
 #include <MSE2202_Lib.h>
 
@@ -14,8 +52,6 @@
 #define RIGHT_MOTOR_A       37  // GPIO37 pin 30 (J37) Motor 2 A
 #define RIGHT_MOTOR_B       38  // GPIO38 pin 31 (J38) Motor 2 B
                                    
-#define SHOULDER_SERVO      41  // GPIO41 pin 34 (J41) Servo 1
-#define CLAW_SERVO          42  // GPIO42 pin 35 (J42) Servo 2
                                    
 #define ENCODER_LEFT_A      15  // When DIP Switch S1-1 is on, Left encoder A signal is connected to pin 8 GPIO15 (J15)
                                 // When DIP Switch S1-1 is off, J15 can be used as analog AD2-4
@@ -26,7 +62,7 @@
 #define ENCODER_LEFT_SPD    18  // When DIP Switch S1-4 is on, Left encoder Speed signal is connected to pin 11 GPIO18 (J18)
                                 // When DIP Switch S1-4 is off, J18 can be used as analog AD2-7
                                    
-#define MOTOR_ENABLE_SWITCH 3   // DIP Switch S1-5 pulls Digital pin D3 to ground when on, connected to pin 15 GPIO3 (J3)
+#define MOTOR_ENABLE_SWITCH 46   // DIP Switch S1-5 pulls Digital pin D3 to ground when on, connected to pin 15 GPIO3 (J3)
                                 // When DIP Switch S1-5 is off, J3 can be used as analog AD1-2
                                    
 #define ENCODER_RIGHT_A     11  // When DIP Switch S1-7 is on, Right encoder A signal is connected to pin 19 GPIO11 (J11)
@@ -38,19 +74,25 @@
 #define ENCODER_RIGHT_SPD   14  // When DIP Switch S1-10 is on, Right encoder Speed signal is connected to pin 22 GPIO14 (J14)
                                 // When DIP Switch S1-10 is off, J14 can be used as analog AD2-3
                                    
-#define BRDTST_POT_R1       1   // When DIP Switch S1-12 is on, Analog AD1-0 (pin 39) GPIO1 is connected to Poteniometer R1
 
-#define STEPPER_DIR         39  // GPIO39 pin 32 (J39) STEPPER Motor direction pin
-#define STEPPER_CLK         40  // GPIO40 pin 33 (J40) stepper motor clock pin
+
                                    
 #define SMART_LED           21  // When DIP Switch S1-11 is on, Smart LED is connected to pin 23 GPIO21 (J21)
 #define SMART_LED_COUNT     1   // Number of SMART LEDs in use
 
-#define IR_DETECTOR         9   // GPIO9 pin 17 (J9) IR detector input
+#define Bridge_Servo_1      41  // GPIO41 (J41) is Big Black Servo 1
+#define Bridge_Servo_2      42  // GPIO42 (J42) is Big Black Servo 2
+#define Chasis_Servo_1      40  // GPIO40 (J40) is Rod Servo 
+#define Hook_servo_1        39  // GPIO39 (J39) is Hook Servo 1
+#define Hook_servo_2        47  // GPIO47 (J47) is Hook Servo 2
 
 #define LEFT                1   // Indicates left direction for (stepper) motor
 #define RIGHT               0   // Indicates right direction for (stepper) motor
 
+#define trigPin             5
+#define echoPin             6
+
+#define BRDTST_POT_R1       1 // potentiometer connected to 1
 
 
 // Constants
@@ -62,10 +104,16 @@ const int ci_Display_Update = 100;                                            //
 // IMPORTANT: The constants in this section need to be set to appropriate values for your robot. 
 // You will have to experiment to determine appropriate values.
 
-const int ci_Claw_Servo_Open = 1650;                                          // Value for open position of claw
-const int ci_Claw_Servo_Closed = 1880;                                        // Value for closed position of claw
-const int ci_Shoulder_Servo_Retracted = 690;                                  // Value for shoulder of arm fully retracted
-const int ci_Shoulder_Servo_Extended = 1300;                                  // Value for shoulder of arm fully extended
+const int ci_S1_Open = 1000;                                          // Value for open position of claw
+const int ci_S1_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S2_Open = 1000;                                          // Value for open position of claw
+const int ci_S2_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S3_Open = 1000;                                          // Value for open position of claw
+const int ci_S3_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S4_Open = 1000;                                          // Value for open position of claw
+const int ci_S4_Closed = 4000;                                        // Value for closed position of claw
+const int ci_S5_Open = 1000;                                          // Value for open position of claw
+const int ci_S5_Closed = 4000;                                        // Value for closed position of claw
 
 //
 //=====================================================================================================================
@@ -88,13 +136,7 @@ int i_StepperCentre = i_MaxStepsFromCentre;                                   //
 int i_StepCounter = 0;                                                        // Number of steps to take to reach setpoint
 int i_StepperPosition;                                                        // Current position of stepper, in steps
 
-unsigned int ui_CurrentPotValue;                                              // Current value of pot as raw ADC value
-unsigned int ui_PreviousPotValue = 0;                                         // Previous value of pot as raw ADC value
-unsigned int ui_DeadZone = 50;                                                // Allowable difference between current stepper set point and
-                                                                              // value from pot. Accounts for noise in ADC readings.
-unsigned int ui_PotArmSetpoint;                                               // Desired position of arm stepper motor read from pot
-unsigned int ui_PotClawSetpoint;                                              // Desired position of claw servo read from pot
-unsigned int ui_PotShoulderSetpoint;                                          // Desired position of shoulder servo read from pot
+
 unsigned int ui_Mode_PB_Debounce;                                             // Pushbutton debounce timer count
 
 unsigned long ul_3_Second_timer = 0;                                          // 3 second timer count in milliseconds
@@ -103,6 +145,18 @@ unsigned long ul_200_mS_timer = 0;                                            //
 unsigned long ul_Display_Time;                                                // Heartbeat LED update timer
 unsigned long ul_Previous_Micros;                                             // Last microsecond count
 unsigned long ul_Current_Micros;                                              // Current microsecond count
+
+//=====================================================================================================================
+
+const int trigPin2 = 6;
+const int echoPin2 = 7;
+
+// defines variables
+long duration;
+long duration2;
+
+int distance = 5;
+int distance2;
 
 // Declare SK6812 SMART LED object
 //   Argument 1 = Number of LEDs (pixels) in use
@@ -154,17 +208,16 @@ void setup()
 {
    Serial.begin(9600);
 
-   Scan.Begin(IR_DETECTOR);                                                    //set up IR Detection
+                                                 //set up IR Detection
 
-  pinMode(4, OUTPUT);
-  pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
-  pinMode(7, OUTPUT);
 
    // Set up motors and encoders
    Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B); // Set up motors as Drive 1
-   Bot.servoBegin("S1",CLAW_SERVO);   
-   Bot.servoBegin("S2",SHOULDER_SERVO);
+   Bot.servoBegin("S1", Bridge_Servo_1);   
+   Bot.servoBegin("S2", Bridge_Servo_2);
+   Bot.servoBegin("S3", Chasis_Servo_1);
+   Bot.servoBegin("S4", Hook_servo_1);
+   Bot.servoBegin("S5", Hook_servo_2); 
 
    driveEncoders.Begin(0, LeftSpd_EncoderISR, RightSpd_EncoderISR);           // Set up encoders
 
@@ -178,11 +231,15 @@ void setup()
    pinMode(MOTOR_ENABLE_SWITCH, INPUT_PULLUP);                                // Set up motor enable switch with internal pullup
    ui_Mode_PB_Debounce = 0;                                                   // Reset debounce timer count
    
-   //Stepper motor 
-   pinMode(STEPPER_CLK, OUTPUT);                                              // Set up stepper step/clock pin as output
-   pinMode(STEPPER_DIR, OUTPUT);                                              // Set up stepper direction pin as output
+   
 
-   pinMode(MODE_BUTTON, INPUT_PULLUP);                                        //set up mode button with internal pullup
+   pinMode(MODE_BUTTON, INPUT_PULLUP);  
+                                        //set up mode button with internal pullup
+   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
+  pinMode(echoPin, INPUT);
+
+  pinMode(BRDTST_POT_R1, INPUT);
+
 }
 
 void loop()
@@ -216,71 +273,148 @@ void loop()
          ul_200_mS_timer = 0;                                                 // Reset 200 millisecond timer count
          bt_200_mS_Time_Up = true;                                            // Indicate that 200 milliseconds have elapsed
       }
- // Mode pushbutton debounce and toggle
-    if (!digitalRead(MODE_BUTTON))  // If pushbutton GPIO goes LOW (nominal push)
-    {
-      // Start debounce
-      if (ui_Mode_PB_Debounce <= 25)  // 25 millisecond debounce time
-      {
-        ui_Mode_PB_Debounce = ui_Mode_PB_Debounce + 1;  // Increment debounce timer count
-        if (ui_Mode_PB_Debounce > 25)                   // If held for at least 25 mS
-        {
-          ui_Mode_PB_Debounce = 1000;  // Change debounce timer count to 1 second
-        }
-      }
-      if (ui_Mode_PB_Debounce >= 1000)  // Maintain 1 second timer count until release
-      {
-        ui_Mode_PB_Debounce = 1000;
-      }
-    } else  // Pushbutton GPIO goes HIGH (nominal release)
-    {
-      if (ui_Mode_PB_Debounce <= 26)  // If release occurs within debounce interval
-      {
-        ui_Mode_PB_Debounce = 0;  // Reset debounce timer count
-      } else {
-        ui_Mode_PB_Debounce = ui_Mode_PB_Debounce + 1;  // Increment debounce timer count
-        if (ui_Mode_PB_Debounce >= 1025)                // If pushbutton was released for 25 mS
-        {
-          ui_Mode_PB_Debounce = 0;                        // Reset debounce timer count
-          ui_Robot_Mode_Index++;                          // Switch to next mode
-          ui_Robot_Mode_Index = ui_Robot_Mode_Index & 7;  // Keep mode index between 0 and 7
-          ul_3_Second_timer = 0;                          // Reset 3 second timer count
-          bt_3_S_Time_Up = false;                         // Reset 3 second timer
-        }
-      }
-    }
 
+      // Mode pushbutton debounce and toggle
+      if(!digitalRead(MODE_BUTTON))                                           // If pushbutton GPIO goes LOW (nominal push)
+      {
+         // Start debounce
+         if(ui_Mode_PB_Debounce <= 25)                                        // 25 millisecond debounce time
+         {
+            ui_Mode_PB_Debounce = ui_Mode_PB_Debounce + 1;                    // Increment debounce timer count
+            if(ui_Mode_PB_Debounce > 25)                                      // If held for at least 25 mS
+            {
+               ui_Mode_PB_Debounce = 1000;                                    // Change debounce timer count to 1 second
+            }
+         }
+         if(ui_Mode_PB_Debounce >= 1000)                                      // Maintain 1 second timer count until release
+         {
+            ui_Mode_PB_Debounce = 1000;
+         }
+      }
+      else                                                                    // Pushbutton GPIO goes HIGH (nominal release)
+      {
+         if(ui_Mode_PB_Debounce <= 26)                                        // If release occurs within debounce interval
+         {
+            ui_Mode_PB_Debounce = 0;                                          // Reset debounce timer count
+         }
+         else
+         {
+            ui_Mode_PB_Debounce = ui_Mode_PB_Debounce + 1;                    // Increment debounce timer count
+            if(ui_Mode_PB_Debounce >= 1025)                                   // If pushbutton was released for 25 mS
+            {
+               ui_Mode_PB_Debounce = 0;                                       // Reset debounce timer count
+               ui_Robot_Mode_Index++;                                         // Switch to next mode
+               ui_Robot_Mode_Index = ui_Robot_Mode_Index & 7;                 // Keep mode index between 0 and 7
+               ul_3_Second_timer = 0;                                         // Reset 3 second timer count
+               bt_3_S_Time_Up = false;                                        // Reset 3 second timer         
+            }
+         }
+      }
   
       // check if drive motors should be powered
       bt_Motors_Enabled = !digitalRead(MOTOR_ENABLE_SWITCH);                  // If SW1-5 is on (low signal), then motors are enabled
 
-
+      // modes 
+      // 0 = Default after power up/reset. Robot is stopped.
+      // 1 = Press mode button once to enter. Run robot.
+      // 2 = Press mode button twice to enter. Test stepper motor. 
+      // 3 = Press mode button three times to enter. Test claw servo. 
+      // 4 = Press mode button four times to enter. Test arm shoulder servo.
+      // 5 = Press mode button five times to enter. Test IR receiver. 
+      // 6 = Press mode button six times to enter.  //add your code to do something 
       switch(ui_Robot_Mode_Index)
       {
          case 0: // Robot stopped
          {
-           break;
-         }
-         case 1:{
-          Bot.Forward("D1", 3000, 3000);//drive wheels
-          digitalWrite(4,LOW);
-          digitalWrite(5,HIGH);
-          break;
+            Bot.Stop("D1");                                                   // Stop Drive 1
+            uc_Drive_Index = 0;                                               // Reset drive index
+            uc_Stepper_Index = 0;                                             // Reset stepper index
+            driveEncoders.clearEncoder();                                     // Clear encoder counts
+            bt_2_S_Time_Up = false;                                           // Reset 2 second timer flag
+            break;
          }  
-         case 2:
+      
+         case 1: // Run robot
          {
-           break;
-         }
-         case 3:
-         {
-          digitalWrite(4,HIGH);
-          digitalWrite(5, LOW);
-          break;         }
-        case 4:
-        {
-          ui_Robot_Mode_Index=0;
+          
+            if(bt_3_S_Time_Up)                                                // Pause for 3 sec before running Case 1 code
+            {
+               // Read pot to update drive motor speed
+               uc_Drive_Speed = map(3000, 0, 4096, 150, 255);
+#ifdef DEBUG_DRIVE_SPEED 
+               Serial.print(F("Drive Speed: Pot R1 = "));
+               Serial.print(3000);
+               Serial.print(F(", mapped = "));
+               Serial.println(uc_Drive_Speed);
+#endif
+#ifdef DEBUG_ENCODER_COUNT
+               driveEncoders.getEncoderRawCount();
+               driveEncoders.getEncoderRawSpeed();
+               Serial.print(F("Left Encoder count = "));
+               Serial.print(driveEncoders.lRawEncoderLeftCount);
+               Serial.print(F("   Right Encoder count = "));
+               Serial.print(driveEncoders.lRawEncoderRightCount);
+               Serial.print(F("   Left Encoder speed = "));
+               Serial.print(driveEncoders.lRawEncoderLeftSpeed);
+               Serial.print(F("   Right Encoder speed = "));
+               Serial.println(driveEncoders.lRawEncoderRightSpeed);
+#endif
+
+           if (distance <=10000){
+            digitalWrite(trigPin, LOW);
+  //digitalWrite(trigPin2, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(trigPin, HIGH);
+//  digitalWrite(trigPin2, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+//  digitalWrite(trigPin2, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+    duration = pulseIn(echoPin, HIGH);
+
+//  duration2 = pulseIn(echoPin2, HIGH);
+  // Calculating the distance
+  distance = duration * 0.034 / 2;
+  //distance2 = duration2 * 0.034 / 2;
+  // Prints the distance on the Serial Monitor
+  Serial.print("\nDistance: ");
+  Serial.println(distance);
+            //Drives Bot forward until it reaches spot where sensor no longer sees something 15 units infront of it
+            if (distance <= 15){
+              Bot.Forward("D1", uc_Drive_Speed, uc_Drive_Speed);
+            //Stops the bot
+            }else{
+                Bot.Stop("D1");
+                //Opens the firts deploy servo
+                for(int x = ci_S1_Open, x<=ci_S1_Closed, x++){
+                  Bot.ToPosition("S1", x);
+                }
+                //Opens the second deploy servo
+                for(int y = ci_S2_Open, y<=ci_S2_Closed, y++){
+                  Bot.ToPosition("S2", y);
+                }
+              //Checks if Second deploy servo has been fully deployed
+              if(y == ci_S2_Closed){
+                //If it has been it deploys the hook servo 1
+                for(int g = ci_S4_Open, g<=ci_S4_Closed, g++){
+                  Bot.ToPosition("S4", g);
+                }
+                //Deploys hook servo 2
+                for(int w = ci_S5_Open, y<=ci_S5_Closed, w++){
+                  Bot.ToPosition("S5", w);
+                }
+              }
+                            
+            }
+        
+           } // if distance
         }
-      }
+        break;
+    }
+
+           
+         
 
       // Update brightness of heartbeat display on SmartLED
       ul_Display_Time++;                                                      // Count milliseconds
@@ -297,15 +431,13 @@ void loop()
       }
    }
 }   
-
+}
 // Set colour of Smart LED depending on robot mode (and update brightness)
 void Indicator()
 {
   SmartLEDs.setPixelColor(0, ui_Mode_Indicator[ui_Robot_Mode_Index]);         // Set pixel colors to = mode 
   SmartLEDs.show();                                                           // Send the updated pixel colors to the hardware
 }
-
-
 
 
 
