@@ -1,9 +1,10 @@
-#include <Adafruit_NeoPixel.h>
+    #include <Adafruit_NeoPixel.h>
 #include <MSE2202_Lib.h>
 
 #define servo 2
 #define servo1 4
 #define servo2 21
+#define servo3 47
 
 const int servo_Open=700;
 const int servo_Closed=2000;
@@ -11,6 +12,8 @@ const int servo1_Open=300;
 const int servo1_Closed=2200;
 const int servo2_Open=570;
 const int servo2_Closed=1200;
+const int servo3_Open=350;
+const int servo3_Closed=1050;
 
 int x=servo_Open;
 
@@ -20,23 +23,27 @@ Serial.begin(9600);
 Bot.servoBegin("S1",servo);
 Bot.servoBegin("S2",servo1);
 Bot.servoBegin("S3",servo2);
+Bot.servoBegin("S4",servo3);
+
 }
 
 void loop(){
   //Bot.ToPosition("S3",servo2_Open);
-  for (x=servo2_Open; x<=(servo2_Closed);x=x+50){
+  for (x=servo3_Open; x<=(servo3_Closed);x=x+50){
     Serial.println(x);
     Bot.ToPosition("S1",x);
     Bot.ToPosition("S2",x);
     Bot.ToPosition("S3",x);
+    Bot.ToPosition("S4",x);
+
     delay(200);}
   delay(1000);
-  for (x=servo2_Closed; x>=servo2_Open;x=x-50){
+  for (x=servo3_Closed; x>=servo3_Open;x=x-50){
      Serial.println(x);
      Bot.ToPosition("S1",x);
      Bot.ToPosition("S2",x);
      Bot.ToPosition("S3",x);
-
+     Bot.ToPosition("S4",x);
      delay(200);
   }
   delay(1000);
