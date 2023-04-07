@@ -1,4 +1,3 @@
-
 /*
  MSE 2202 MSEBot base code for Labs 3 and 4
  Language: Arduino
@@ -51,29 +50,20 @@
 #define LEFT_MOTOR_B        36  // GPIO36 pin 29 (J36) Motor 1 B
 #define RIGHT_MOTOR_A       37  // GPIO37 pin 30 (J37) Motor 2 A
 #define RIGHT_MOTOR_B       38  // GPIO38 pin 31 (J38) Motor 2 B
+#define Pullup_Motor_A      15
+#define Pullup_Motor_B      16
+#define Retract_Motor_A     17
+#define Retract_Motor_B     18
+
                                    
-                                   
-#define ENCODER_LEFT_A      15  // When DIP Switch S1-1 is on, Left encoder A signal is connected to pin 8 GPIO15 (J15)
-                                // When DIP Switch S1-1 is off, J15 can be used as analog AD2-4
-#define ENCODER_LEFT_B      16  // When DIP Switch S1-2 is on, Left encoder B signal is connected to pin 9 GPIO16 (J16)
-                                // When DIP Switch S1-2 is off, J16 can be used as analog AD2-5
-#define ENCODER_LEFT_DIR    17  // When DIP Switch S1-3 is on, Left encoder Direction signal is connected to pin 10 GPIO17 (J17)
-                                // When DIP Switch S1-3 is off, J17 can be used as analog AD2-6
-#define ENCODER_LEFT_SPD    18  // When DIP Switch S1-4 is on, Left encoder Speed signal is connected to pin 11 GPIO18 (J18)
-                                // When DIP Switch S1-4 is off, J18 can be used as analog AD2-7
+                                
                                    
 #define MOTOR_ENABLE_SWITCH 46   // DIP Switch S1-5 pulls Digital pin D3 to ground when on, connected to pin 15 GPIO3 (J3)
                                 // When DIP Switch S1-5 is off, J3 can be used as analog AD1-2
                                    
-#define ENCODER_RIGHT_A     11  // When DIP Switch S1-7 is on, Right encoder A signal is connected to pin 19 GPIO11 (J11)
-                                // When DIP Switch S1-7 is off, J11 can be used as analog AD2-0
-#define ENCODER_RIGHT_B     12  // When DIP Switch S1-8 is on, Right encoder B signal is connected to pin 20 GPIO12 (J12)
-                                // When DIP Switch S1-8 is off, J12 can be used as analog AD2-1
-#define ENCODER_RIGHT_DIR   13  // When DIP Switch S1-9 is on, Right encoder Direction signal is connected to pin 21 GPIO13 (J13)
-                                // When DIP Switch S1-9 is off, J13 can be used as analog AD2-2
-#define ENCODER_RIGHT_SPD   14  // When DIP Switch S1-10 is on, Right encoder Speed signal is connected to pin 22 GPIO14 (J14)
-                                // When DIP Switch S1-10 is off, J14 can be used as analog AD2-3
-                                   
+
+#define Limit_Switch        14  // Limit switch connected to 14
+#define Limit_Switch_1      11  //Limit Switch connected to 11
 
 
                                    
@@ -104,11 +94,11 @@ const int ci_Display_Update = 100;                                            //
 
 const int ci_S1_Open = 700;                                          // Value for open position of claw
 const int ci_S1_Closed = 2000;                                        // Value for closed position of claw
-const int ci_S2_Open = 300;                                          // Value for open position of claw
-const int ci_S2_Closed = 2200;                                        // Value for closed position of claw
+const int ci_S2_Open = 2200;                                          // Value for open position of claw
+const int ci_S2_Closed = 300;                                        // Value for closed position of claw
 const int ci_S3_Open = 1000;                                          // Value for open position of claw
 const int ci_S3_Closed = 4000;                                        // Value for closed position of claw
-const int ci_S4_Open = 570;                                          // Value for open position of claw
+const int ci_S4_Open = 700;                                          // Value for open position of claw
 const int ci_S4_Closed = 1200;                                        // Value for closed position of claw
 const int ci_S5_Open = 350;                                          // Value for open position of claw
 const int ci_S5_Closed = 1050;                                        // Value for closed position of claw
@@ -151,6 +141,11 @@ long duration2;
 long count = 0;
 
 int y;
+int w;
+int x;
+
+int limit = 0;
+int limit_1 = 0;
 
 int distance = 5;
 int distance2;
@@ -184,19 +179,6 @@ unsigned int  ui_Mode_Indicator[7] = {                                        //
 
 // Motor and encoder objects (classes defined in MSE2202_Lib)
 Motion Bot = Motion();                                                        // Instance of Motion for motor control
-Encoders driveEncoders = Encoders();                                          // Instance of Encoders for encoder data
-IR Scan = IR();                                                               // Instance of IR for beacon detection
-
-// Interrupt Service Routines
-void IRAM_ATTR LeftSpd_EncoderISR()                                           // ISR to update left encoder count
-{
-   driveEncoders.LeftSpd_Encoder_ISR();
-}
-
-void IRAM_ATTR RightSpd_EncoderISR()                                          // ISR to update right encoder count
-{
-	driveEncoders.RightSpd_Encoder_ISR();
-}
 
 // Function Declarations
 void Indicator();                                                             // For mode/heartbeat on Smart LED
@@ -209,14 +191,16 @@ void setup()
 
 
    // Set up motors and encoders
+   
    Bot.driveBegin("D1", LEFT_MOTOR_A, LEFT_MOTOR_B, RIGHT_MOTOR_A, RIGHT_MOTOR_B); // Set up motors as Drive 1
+   Bot.driveBegin("D2", Pullup_Motor_A, Pullup_Motor_B, Retract_Motor_A, Retract_Motor_B);
    Bot.servoBegin("S1", Bridge_Servo_1);   
    Bot.servoBegin("S2", Bridge_Servo_2);
    Bot.servoBegin("S3", Chasis_Servo_1);
    Bot.servoBegin("S4", Hook_servo_1);
    Bot.servoBegin("S5", Hook_servo_2); 
 
-   driveEncoders.Begin(0, LeftSpd_EncoderISR, RightSpd_EncoderISR);           // Set up encoders
+   
 
    // Set up SmartLED
    SmartLEDs.begin();                                                         // Initialize smart LEDs object (REQUIRED)
@@ -234,6 +218,9 @@ void setup()
                                         //set up mode button with internal pullup
    pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
   pinMode(echoPin, INPUT);
+
+  pinMode(Limit_Switch, INPUT_PULLUP);
+  pinMode(Limit_Switch_1, INPUT_PULLUP);
 
 
 
@@ -330,7 +317,7 @@ void loop()
             Bot.ToPosition("S3", ci_S3_Open);
             Bot.ToPosition("S4", ci_S1_Open);
             Bot.ToPosition("S5", ci_S1_Open);
-            driveEncoders.clearEncoder();                                     // Clear encoder counts
+          
             bt_2_S_Time_Up = false;                                           // Reset 2 second timer flag
             break;
          }  
@@ -350,18 +337,6 @@ void loop()
                Serial.print(3000);
                Serial.print(F(", mapped = "));
                Serial.println(uc_Drive_Speed);
-#endif
-#ifdef DEBUG_ENCODER_COUNT
-               driveEncoders.getEncoderRawCount();
-               driveEncoders.getEncoderRawSpeed();
-               Serial.print(F("Left Encoder count = "));
-               Serial.print(driveEncoders.lRawEncoderLeftCount);
-               Serial.print(F("   Right Encoder count = "));
-               Serial.print(driveEncoders.lRawEncoderRightCount);
-               Serial.print(F("   Left Encoder speed = "));
-               Serial.print(driveEncoders.lRawEncoderLeftSpeed);
-               Serial.print(F("   Right Encoder speed = "));
-               Serial.println(driveEncoders.lRawEncoderRightSpeed);
 #endif
 
            if (distance <=10000){
@@ -400,12 +375,12 @@ void loop()
        //deploys bridge
       case 1:{
         //deploys first servo bridge
-            for(int x = ci_S1_Open; x<=ci_S1_Closed; x++){
+            for(x = ci_S1_Open; x<=ci_S1_Closed; x++){
                   Bot.ToPosition("S1", x);   
                   delay(200);
             }
             //deploys second servo bridge
-            for(y = ci_S2_Open; y<=ci_S2_Closed; y++){
+            for(y = ci_S2_Open; y>=ci_S2_Closed; y--){
                   Bot.ToPosition("S2", y);
                   delay(200);
                 } 
@@ -418,7 +393,7 @@ void loop()
                   delay(200);
                 }
                 //Deploys hook servo 2
-                for(int w = ci_S5_Open; y<=ci_S5_Closed; w++){
+                for(w = ci_S5_Open; y<=ci_S5_Closed; w++){
                   Bot.ToPosition("S5", w);
                   delay(200);
                 }
@@ -429,9 +404,117 @@ void loop()
       }
           case 2:
           {
-                        
+            //Checks if limit switch on far L-Hook has been hit and sets it to that value
+            limit = digitalRead(Limit_Switch);
+            //If it hasnt drives bot backwards
+            if(limit == 0){
+            Bot.Reverse("D1", uc_Drive_Speed, uc_Drive_Speed);
+            //otherwise it stops it and retracts the hook piece
+            }else{
+            Bot.Stop("D1"); 
+
+            for(int h = ci_S3_Open; h>= ci_S3_Closed; h--){
+              Bot.ToPosition("S3", h);
+            } 
+            count = 3; 
+            }            
             break;
           }
+          //Bot gets rolled up the bridge and pins it self back in hole
+          case 3:
+          {
+            limit_1 = digitalRead(Limit_Switch_1);
+            if(limit_1 == 0){
+              //Sets the Pullup motor to pull chasis up while retract motor stays stationary
+              Bot.Forward("D2",uc_Drive_Speed, 0);
+            }else{
+              //stops the motor
+              Bot.Stop("D2");
+              for(int h = ci_S3_Closed; h<= ci_S3_Open; h++){
+              Bot.ToPosition("S3", h);
+            } 
+            count = 4; 
+
+            }
+            break;
+          }  
+          //Retracts the brigde back up
+          case 4:
+          {
+            for(int g = ci_S4_Closed; g>=ci_S4_Open; g--){
+                  Bot.ToPosition("S4", g);
+                  delay(200);
+                }
+                //Deploys hook servo 2
+                for(w = ci_S5_Closed; y>=ci_S5_Open; w--){
+                  Bot.ToPosition("S5", w);
+                  delay(200);
+                }
+                delay(1000);
+              if(w == ci_S5_Closed){
+                //Retract bridge up and spool it in. then stop spooling it.
+                
+                for(x = ci_S1_Closed; x>=ci_S1_Open; x--){
+                  Bot.ToPosition("S1", x);   
+                  delay(200);
+              }
+              if(x == ci_S1_Open){
+                  Bot.Forward("D2", 0 ,uc_Drive_Speed);  
+                  for(y = ci_S2_Closed; x>=ci_S2_Open; y--){
+                  Bot.ToPosition("S2", y);   
+                  delay(200);
+              }if(y == ci_S2_Open){
+                Bot.Stop("D2");
+                count = 5;            
+              }
+            
+              }
+              
+              
+              }              
+            break;
+          }
+          case 5:
+          {
+            for(int h = ci_S3_Open; h<= ci_S3_Closed; h--){
+              Bot.ToPosition("S3", h);
+            } 
+                       if (distance <=10000){
+            digitalWrite(trigPin, LOW);
+  //digitalWrite(trigPin2, LOW);
+  delayMicroseconds(2);
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(trigPin, HIGH);
+//  digitalWrite(trigPin2, HIGH);  
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+//  digitalWrite(trigPin2, LOW);
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+    duration = pulseIn(echoPin, HIGH);
+
+//  duration2 = pulseIn(echoPin2, HIGH);
+  // Calculating the distance
+  distance = duration * 0.034 / 2;
+  //distance2 = duration2 * 0.034 / 2;
+  // Prints the distance on the Serial Monitor
+  Serial.print("\nDistance: ");
+  Serial.println(distance);
+            //Drives Bot forward until it reaches spot where sensor no longer sees something 15 units infront of it
+            if (distance <= 15){
+              Bot.Forward("D1", uc_Drive_Speed, uc_Drive_Speed);
+            //Stops the bot
+            }else{
+                Bot.Stop("D1");
+                count = 6;
+                //Opens the firts deploy servo
+            }
+            break;            
+          }  
+          case 6:
+          {
+            //Naish's backup code here
+            break;
+          }      
       }
         break;
     }
@@ -453,7 +536,8 @@ void loop()
          Indicator();                                                         // Update LED
       }
    }
-}   
+}  
+} 
 
 // Set colour of Smart LED depending on robot mode (and update brightness)
 void Indicator()
